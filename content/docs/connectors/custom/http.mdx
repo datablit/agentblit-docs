@@ -1,0 +1,188 @@
+---
+title: Custom HTTP Connector
+description: Build and register a custom HTTP connector with AgentBlit
+---
+
+Users can add a **custom HTTP connector** in AgentBlit by exposing two REST endpoints on a publicly accessible URL, then registering that URL in the AgentBlit console.
+
+## Overview
+
+A custom HTTP connector lets your backend expose tools (functions) that agents can discover and invoke. AgentBlit calls your service to list available tools and to execute them at runtime.
+
+The flow has two parts:
+
+1. **Build** — Implement `/api/1.0/tools/list` and `/api/1.0/tools/call`, then deploy them on a public URL.
+2. **Register** — Add the connector URL in the AgentBlit console and attach it to an agent.
+
+---
+
+## Build a custom connector
+
+Implement the following APIs on your server.
+
+### 1. List tools
+
+**`GET /api/1.0/tools/list`**
+
+Returns the list of tools and their definitions (OpenAI-style function schemas).
+
+```bash
+curl --location 'https://med.agentblit.com/api/1.0/tools/list'
+```
+
+**Response**
+
+```json
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "GetCart",
+        "description": "Get all cart items with totals.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "UpdateCart",
+        "description": "Replace cart with the provided medicine quantities.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "medicineId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["medicineId", "quantity"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "searchMedicine",
+        "description": "Search medicines by name.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "medicineName": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["medicineName"],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}
+```
+
+Each entry in `tools` must include:
+
+- `type`: `"function"`
+- `function.name`: Unique tool name used when calling the tool
+- `function.description`: What the tool does (shown to the model)
+- `function.parameters`: JSON Schema for the tool’s arguments
+
+### 2. Call tools
+
+**`POST /api/1.0/tools/call`**
+
+Executes one or more tool calls and returns results keyed by `tool_call_id`.
+
+**Request**
+
+```bash
+curl --location 'https://med.agentblit.com/api/1.0/tools/call' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "tool_calls": [
+      {
+        "id": "call_IWHXuqijtAyAj30UBMSfjlGU",
+        "type": "function",
+        "function": {
+          "name": "searchMedicine",
+          "arguments": "{\"medicineName\":\"Vitamin\"}"
+        }
+      }
+    ]
+  }'
+```
+
+| Field | Description |
+| --- | --- |
+| `tool_calls` | Array of tool invocations from the agent |
+| `tool_calls[].id` | Correlates with `tool_call_id` in the response |
+| `tool_calls[].function.name` | Must match a name from `/tools/list` |
+| `tool_calls[].function.arguments` | JSON string of arguments matching the tool’s parameter schema |
+
+**Response**
+
+```json
+{
+  "results": [
+    {
+      "tool_call_id": "call_IWHXuqijtAyAj30UBMSfjlGU",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"items\":[{\"id\":5,\"name\":\"Multivitamin Capsules\",\"description\":\"General nutrition support\",\"price\":210},{\"id\":2,\"name\":\"Vitamin C Tablets\",\"description\":\"Daily immunity support\",\"price\":120}]}"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Each item in `results` must include:
+
+- `tool_call_id`: Same `id` as in the request
+- `result.content`: Array of content blocks; use `type: "text"` and put your payload in `text` (often JSON serialized as a string)
+
+### 3. Deploy on a public URL
+
+Host both endpoints on an **HTTPS URL** reachable from the internet (for example `https://your-service.example.com`). AgentBlit will call:
+
+- `GET https://your-service.example.com/api/1.0/tools/list`
+- `POST https://your-service.example.com/api/1.0/tools/call`
+
+Use the base URL of your deployment when registering the connector (see below).
+
+---
+
+## Add a custom connector in AgentBlit
+
+After your APIs are live:
+
+1. **Create an account** in the [AgentBlit console](https://console.agentblit.com).
+2. **Create an agent** for your use case.
+3. Open **Connectors** → **Add custom connector**.
+4. Choose **Custom HTTP connector** and enter your service’s public base URL (the host that serves `/api/1.0/tools/list` and `/api/1.0/tools/call`).
+
+AgentBlit will discover tools from your list endpoint and invoke them through the call endpoint when the agent needs them.
