@@ -20,6 +20,173 @@ The flow has two parts:
 
 Implement the following APIs on your server.
 
+### API types
+
+Use these types in your connector service. `parameters` is a [JSON Schema](https://json-schema.org/) object and varies per tool. Expand a language below to copy the types.
+
+<Accordions type="single" collapsible>
+
+<Accordion title="TypeScript" id="api-types-typescript">
+
+```ts
+/** GET /api/1.0/tools/list */
+export interface ListToolsResponse {
+  tools: ToolDefinition[];
+}
+
+export interface ToolDefinition {
+  type: 'function';
+  function: FunctionDefinition;
+}
+
+export interface FunctionDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema for tool arguments */
+  parameters: Record<string, unknown>;
+}
+
+/** POST /api/1.0/tools/call — request body */
+export interface CallToolsRequest {
+  tool_calls: ToolCall[];
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: ToolCallFunction;
+}
+
+export interface ToolCallFunction {
+  name: string;
+  /** JSON-encoded arguments matching the tool's parameter schema */
+  arguments: string;
+}
+
+/** POST /api/1.0/tools/call — response body */
+export interface CallToolsResponse {
+  results: ToolCallResult[];
+}
+
+export interface ToolCallResult {
+  tool_call_id: string;
+  result: ToolResult;
+}
+
+export interface ToolResult {
+  content: ToolResultContent[];
+}
+
+export interface ToolResultContent {
+  type: 'text';
+  text: string;
+}
+```
+
+Parse `arguments` when handling a call:
+
+```ts
+function parseToolArguments<T>(toolCall: ToolCall): T {
+  return JSON.parse(toolCall.function.arguments) as T;
+}
+
+// Example: searchMedicine arguments
+interface SearchMedicineArgs {
+  medicineName: string;
+}
+
+const args = parseToolArguments<SearchMedicineArgs>(toolCall);
+```
+
+</Accordion>
+
+<Accordion title="Go" id="api-types-go">
+
+```go
+package connector
+
+import "encoding/json"
+
+const (
+	ToolTypeFunction = "function"
+	ContentTypeText    = "text"
+)
+
+// ListToolsResponse is the body for GET /api/1.0/tools/list.
+type ListToolsResponse struct {
+	Tools []ToolDefinition `json:"tools"`
+}
+
+type ToolDefinition struct {
+	Type     string             `json:"type"`
+	Function FunctionDefinition `json:"function"`
+}
+
+type FunctionDefinition struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"` // JSON Schema object
+}
+
+// CallToolsRequest is the body for POST /api/1.0/tools/call.
+type CallToolsRequest struct {
+	ToolCalls []ToolCall `json:"tool_calls"`
+}
+
+type ToolCall struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type"`
+	Function ToolCallFunction `json:"function"`
+}
+
+type ToolCallFunction struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON-encoded arguments
+}
+
+// CallToolsResponse is the body for POST /api/1.0/tools/call.
+type CallToolsResponse struct {
+	Results []ToolCallResult `json:"results"`
+}
+
+type ToolCallResult struct {
+	ToolCallID string     `json:"tool_call_id"`
+	Result     ToolResult `json:"result"`
+}
+
+type ToolResult struct {
+	Content []ToolResultContent `json:"content"`
+}
+
+type ToolResultContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+```
+
+Parse `Arguments` when handling a call:
+
+```go
+type SearchMedicineArgs struct {
+	MedicineName string `json:"medicineName"`
+}
+
+func parseToolArguments[T any](tc ToolCall) (T, error) {
+	var args T
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return args, err
+	}
+	return args, nil
+}
+
+// usage:
+// args, err := parseToolArguments[SearchMedicineArgs](toolCall)
+```
+
+</Accordion>
+
+</Accordions>
+
 ### 1. List tools
 
 **`GET /api/1.0/tools/list`**

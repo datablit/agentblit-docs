@@ -8,6 +8,7 @@ const withMDX = createMDX();
 
 /** @type {import('next').NextConfig} */
 const config = {
+  output: 'standalone',
   reactStrictMode: true,
   turbopack: {
     root: projectRoot,

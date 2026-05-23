@@ -2,7 +2,7 @@
   "name": "agentblit-docs",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.12.1",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
@@ -27,10 +27,11 @@
     "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "eslint": "^10.4.0",
+    "eslint-config-next": "16.2.6",
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "eslint-config-next": "16.2.6",
-    "eslint": "^10.4.0"
+    "vite": "^7.3.3"
   }
 }
